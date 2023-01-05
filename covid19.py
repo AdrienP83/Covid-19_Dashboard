@@ -1,195 +1,44 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Sep 30 21:45:17 2020
-
-@author: ASHAAB
-"""
 import streamlit as st
-from streamlit_folium import folium_static
-import json
-import folium
-import requests
-import mimetypes
-import http.client
 import pandas as pd
-from folium.plugins import HeatMap
-from pandas.io.json import json_normalize
-import plotly
-import plotly.express as px
+st.set_page_config(
+    page_title="Accueil",
+    page_icon="🏠",
+)
 
-def main():
-    
-    st.markdown("<h1 style='text-align: center; color: #ff634d;'><strong><u>Covid-19 Dashboard</u></strong></h1>", unsafe_allow_html=True)
-    st.sidebar.markdown("<h1 style='text-align: center; color: #aaccee;'><strong><u>Covid-19 Dashboard</u></strong></h1>", unsafe_allow_html=True)
-    
-    st.markdown("This Web App is a live Covid-19 Dashboard which access Data sourced from Johns Hopkins CSSE", unsafe_allow_html=True)
-    
-    
-    conn = http.client.HTTPSConnection("api.covid19api.com")
-    payload =''
-    headers={}
-    conn.request("GET","/summary",payload,headers)
-    res = conn.getresponse()
-    data=res.read().decode('UTF-8')
-    covid = json.loads(data)
-    
-    
-    df=pd.DataFrame(covid['Countries'])
-    
-    covid1=df.drop(columns=['CountryCode','Slug','Date','Premium'],axis=1)
-    covid1['ActiveCases'] = covid1['TotalConfirmed']-covid1['TotalRecovered']
-    covid1['ActiveCases'] = covid1['ActiveCases']-covid1['TotalDeaths']
-    
-    
-    dfn=covid1.drop(['NewConfirmed','NewDeaths','NewRecovered'],axis=1)
-    dfn = dfn.groupby('Country')['TotalConfirmed','TotalDeaths','TotalRecovered','ActiveCases'].sum().sort_values(by='TotalConfirmed',ascending=False)
-    dfn.style.background_gradient(cmap='Oranges')
-    
-    dfc = covid1.groupby('Country')['TotalConfirmed','TotalDeaths','TotalRecovered','ActiveCases'].max().sort_values(by='TotalConfirmed',ascending=False).reset_index()
- 
-    m = folium.Map(tiles='Stamen Terrain',min_zoom=1.5)
-    url='https://raw.githubusercontent.com/python-visualization/folium/master/examples/data'
-    country_shapes = f'{url}/world-countries.json'
-    folium.Choropleth(
-    geo_data=country_shapes,
-    min_zoom=2,
-    name='Covid-19',
-    data=covid1,
-    columns=['Country','TotalConfirmed'],
-    key_on='feature.properties.name',
-    fill_color='YlOrRd',
-    nan_fill_color='black',
-    legend_name='Total Confirmed Cases',
-    ).add_to(m)
-    
-    m1 = folium.Map(tiles='Stamen Terrain',min_zoom=1.5)
-    url='https://raw.githubusercontent.com/python-visualization/folium/master/examples/data'
-    country_shapes = f'{url}/world-countries.json'
-    folium.Choropleth(
-    geo_data=country_shapes,
-    min_zoom=2,
-    name='Covid-19',
-    data=covid1,
-    columns=['Country','TotalRecovered'],
-    key_on='feature.properties.name',
-    fill_color='YlOrRd',
-    nan_fill_color='black',
-    legend_name='Total Recovered Cases',
-    ).add_to(m1)
-    
-    m4 = folium.Map(tiles='Stamen Terrain',min_zoom=1.5)
-    url='https://raw.githubusercontent.com/python-visualization/folium/master/examples/data'
-    country_shapes = f'{url}/world-countries.json'
-    folium.Choropleth(
-    geo_data=country_shapes,
-    min_zoom=2,
-    name='Covid-19',
-    data=covid1,
-    columns=['Country','ActiveCases'],
-    key_on='feature.properties.name',
-    fill_color='YlOrRd',
-    nan_fill_color='black',
-    legend_name='Active Cases',
-    ).add_to(m4)
-    
-    
-    coordinates = pd.read_csv('https://raw.githubusercontent.com/VinitaSilaparasetty/covid-map/master/country-coordinates-world.csv')
-    covid_final = pd.merge(covid1,coordinates,on='Country')
-    
-    dfn
-    confirmed_tot = int(dfc['TotalConfirmed'].sum())
-    deaths_tot = int(dfc['TotalDeaths'].sum())
-    recovered_tot = int(dfc['TotalRecovered'].sum())  
-    active_tot = int(dfc['ActiveCases'].sum()) 
-    
-    st.write('TOTAL CONFIRMED CASES FROM ALL OVER THE WORLD - ',confirmed_tot)
-    st.write('TOTAL DEATH CASES FROM ALL OVER THE WORLD - ',deaths_tot)
-    st.write('TOTAL RECOVERED CASES FROM ALL OVER THE WORLD - ',recovered_tot)
-    st.write('TOTAL ACTIVE CASES FROM ALL OVER THE WORLD - ',active_tot)
-    
-   
-    
-    
-    st.sidebar.subheader('Analysis through Map - Folium')
-    
-    select = st.sidebar.selectbox('Choose Map Type',['Confirmed Cases','Recovered Cases','Active Cases','Deaths'],key='1')
-    
-    
-    if not st.sidebar.checkbox("Hide Map",True):
-        
-        if select == "Confirmed Cases": 
-           folium_static(m)
-           
-           
-           
-        elif select == "Recovered Cases":
-            
-           folium_static(m1)
-           
-           
-        elif select == "Active Cases":
-            
-           folium_static(m4)
-           
-           
-        else:
-           m2 = folium.Map(tiles='StamenToner',min_zoom=1.5)
-           deaths=covid_final['TotalDeaths'].astype(float)
-           lat=covid_final['latitude'].astype(float)
-           long=covid_final['longitude'].astype(float)
-          
-           m2.add_child(HeatMap(zip(lat,long,deaths),radius=0))
-           folium_static(m2)
-           
-    st.sidebar.subheader('Analysis through Bar Chart - Plotly')
-    
-    select = st.sidebar.selectbox('Choose Bar Chart',['Confirmed Cases','Recovered Cases','Active Cases','Deaths'],key='2')
-    
-           
-           
-    if not st.sidebar.checkbox("Hide Bar Chart",True):
-        
-        if select == "Confirmed Cases": 
-           fig = px.bar(dfc.head(10), y='TotalConfirmed',x='Country',color='Country',height=400)
-           fig.update_layout(title='Comparison of Total Confirmed Cases of 10 Most Affected Countries',xaxis_title='Country',yaxis_title='Total Confirmed Case',template="plotly_dark")
-           st.plotly_chart(fig)
-           
-           
-           
-        elif select == "Recovered Cases":
-            
-           fig = px.bar(dfc.head(10), y='TotalRecovered',x='Country',color='Country',height=400)
-           fig.update_layout(title='Comparison of Total Recovered of 10 Most Affected Countries',xaxis_title='Country',yaxis_title='Total Recovered',template="plotly_dark")
-           st.plotly_chart(fig)
-            
-           
-        elif select == "Active Cases":
-            
-           fig = px.bar(dfc.head(10), y='ActiveCases',x='Country',color='Country',height=400)
-           fig.update_layout(title='Comparison of Active Cases of 10 Most Affected Countries',xaxis_title='Country',yaxis_title='Total Recovered',template="plotly_dark")
-           st.plotly_chart(fig)
-            
-           
-        else:
-          fig = px.bar(dfc.head(10), y='TotalDeaths',x='Country',color='Country',height=400)
-          fig.update_layout(title='Comparison of Total Deaths of 10 Most Affected Countries',xaxis_title='Country',yaxis_title='Total Deaths',template="plotly_dark")
-          st.plotly_chart(fig)
-          
-          
-    st.sidebar.subheader('Analysis through 3D Plot')
-    
-    if not st.sidebar.checkbox("Hide 3D plot",True):
-        
-        fig = px.scatter_3d(dfc.head(10), x='TotalConfirmed', y='TotalDeaths', z='TotalRecovered',
-              color='Country')
-        fig.update_layout(title='3D Plot of Total Cases, Total Deaths and Total Recovered of Top 20 Affected Countries')
-        st.plotly_chart(fig)
-         
-    if st.sidebar.checkbox("Show Raw Data",False):
-        st.subheader("Covid 19 Data")
-        st.write(covid1)
-     
-if __name__ == '__main__':
-    main()
-    
-    st.markdown("For issues Contact - ashaabrizvi11@gmail.com")
+st.set_page_config(
+    page_title="Accueil",
+    page_icon="🏠",
+)
+
+st.markdown("# Accueil 🏠")
+st.sidebar.markdown("# Accueil 🏠")
+
+
+st.title("🦠 Data Storytelling Covid-19 🦠")
+
+st.header("Axe principal:")
+st.write(
+    "Évolution globale du COVID-19 : Les\nvariables représentent toutes nos principales données liées aux cas confirmés, aux décès, aux hospitalisations et aux tests, ainsi que d'autres variables d'intérêt potentiel."
+)
+st.header("Petit résumé:")
+st.write(
+    "La pandémie de Covid-19, causée par le coronavirus SARS-CoV-2, a été déclarée par l'Organisation mondiale de la santé (OMS) le 11 mars 2020.\n\n Depuis lors, elle a eu un impact considérable sur la santé et l'économie mondiale.\n\n En termes de santé, la pandémie a entraîné une augmentation rapide et significative des cas de Covid-19 dans le monde, avec plus de 184 millions de cas confirmés à ce jour. Elle a également causé la mort de près de 3,9 millions de personnes dans le monde.\n\n En ce qui concerne l'impact économique, la pandémie a entraîné une récession mondiale, avec une baisse de la croissance économique dans de nombreux pays. Elle a également entraîné une hausse du chômage et une augmentation de la pauvreté dans de nombreux pays, en particulier dans les secteurs les plus touchés par les fermetures et les restrictions de voyage.\n\n La pandémie a également eu un impact sur les relations internationales, avec des tensions entre les pays sur l'accès aux équipements de protection et aux vaccins contre le Covid-19. Elle a également mis en lumière les inégalités existantes dans l'accès aux soins de santé et aux ressources en cas de crise sanitaire.\n\n En résumé, la pandémie de Covid-19 a eu un impact profond et duradouer sur la santé et l'économie mondiale, ainsi que sur les relations internationales. Elle reste une préoccupation majeure pour les gouvernements et les organisations internationales, qui continuent de mettre en place des stratégies pour faire face à la crise et atténuer ses effets."""
+)
+st.header("L'évolution de la pandémie de Covid-19 dans le monde :")
+st.write(
+    "Depuis le début de la pandémie, il y a eu plus de 184 millions de cas confirmés de Covid-19 dans le monde, avec un pic de cas quotidiens atteint en janvier 2021. \n\nLes pays les plus touchés par la pandémie sont les États-Unis, l'Inde, le Brésil, le Mexique et la Russie, qui comptent ensemble près de la moitié des cas confirmés dans le monde. \n\nLes taux de mortalité varient considérablement d'un pays à l'autre et dépendent de plusieurs facteurs, tels que l'accessibilité des soins de santé, les stratégies de confinement et de distanciation sociale mises en place par les gouvernements, ainsi que la capacité des systèmes de santé à faire face à l'afflux de patients. \n\nPlusieurs vaccins contre le Covid-19 ont été développés et sont actuellement en cours de distribution dans de nombreux pays. Toutefois, la distribution des vaccins est inégale dans le monde, et certains pays en développement ont encore du mal à accéder à ces vaccins. \n\nLa pandémie a eu des répercussions économiques importantes dans le monde, avec une baisse de la croissance économique, une hausse du chômage et une augmentation de la pauvreté dans de nombreux pays. \n\nDes efforts de recherche sont toujours en cours pour comprendre la maladie et trouver de nouvelles stratégies de lutte contre le Covid-19."
+)
+
+df = pd.DataFrame({
+  'first column': [1, 2, 3, 4],
+  'second column': [10, 20, 30, 40]
+})
+
+df
+
+st.write("Here's our first attempt at using data to create a table:")
+st.write(pd.DataFrame({
+    'first column': [1, 2, 3, 4],
+    'second column': [10, 20, 30, 40]
+}))
+
